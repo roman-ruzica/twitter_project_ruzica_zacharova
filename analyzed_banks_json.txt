@@ -1,0 +1,1 @@
+﻿{"Česká spořitelna":"ceskasporitelna","Československá obchodní banka":"csob_cz","Komerční Banka":"komercka","UniCredit":"unicredit_czsk","Raiffeisenbank":"raiffeisencz"}
