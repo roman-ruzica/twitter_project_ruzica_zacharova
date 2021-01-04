@@ -1,193 +1,104 @@
-import json
-import pandas
-import requests
-import twitter
-import polyglot
-
-
-
-
-
-class Bank
+class Twitter_user():
     '''
-    A class to download and store all tweets pertaining to a specific bank"
+    Class containing timeline (list of all recent tweets), mentions statistics about their posts
+    
     '''
     
-        def __init__(self,allowLog=True):
-        '''
-        creates IES_Downloader object with self.links, that store links to be downloaded
-        and self.people, self.courses and self.theses to store individual IES_Web-like objects
-        '''
-        self.allowLog = allowLog
-        self.links = {
-            'people':{},
-            'courses':[],
-            'theses':{}
-        }
-        self.people = []
-        self.courses = []
-        self.theses = []
+    def __init__(self, twitter_handle, api):
+
+        self.twitter_handle = twitter_handle
+        self.api = twitter.Api(consumer_key=authentification['API_key'],
+                  consumer_secret=authentification['API_secret_key'],
+                  access_token_key=authentification['Access_token'],
+                  access_token_secret=authentification['Access_token_secret'],
+                 tweet_mode='extended')
         
-        if self.allowLog:
-            print('Succesfully initialized IES Downloader')
+    def get_timeline(self):
+        self.timeline = self.api.GetUserTimeline(screen_name=self.twitter_handle, count=2)
+        
+    def get_mentions(self):
+        self.mentions = self.api.GetSearch(term=self.twitter_handle,include_entities=True, count=2, result_type='recent')
+        
+    def gather_tweets(self):
+        self.get_mentions()
+        self.get_timeline()
+        
+    def get_account_details(self):
+        '''
+        requires at least one tweet in the timeline attribute Call get_timeline() or gather_tweets() to construct it
+        '''
+        self.details = {}
+        self.detail_atributes_required = ('favourites_count', 'followers_count', 'friends_count', 'statuses_count')
+        self.details = {k: self.timeline[1]._json['user'][k] for k in self.detail_atributes_required}
+        print(self.details)
+        
+        
+        
+        
+    def extract_mention_user_data(self):
+        
+        self.interesting_atributes = ['screen_name', 'favourites_count', 'followers_count', 'friends_count', 'statuses_count', 'location']
+        for num, tweet in enumerate(rajf.mentions, start=0):
+            self.mentions[num].user_info = (
+                {k: self.mentions[num]._json['user'][k] for k in self.interesting_atributes}
+            )
+            self.mentions[num].user_info_pd = pd.DataFrame( self.mentions[num].user_info,
+                                                           index =  [self.mentions[num].user_info['screen_name']])
+        
+    def extract_mention_tweet_data(self):    
+        
+        tweet_attributes = ['full_text', 'lang', 'retweet_count', 'source']
             
+        for num, tweet in enumerate(rajf.mentions, start=0):
+            self.mentions[num].tweet_info = (
+                {k: self.mentions[num]._json[k] for k in tweet_attributes}
+            )
             
-        def
-            
-            
-class             
-            
-            
-class IES_Downloader:
+        
+    def generate_mentions_pdf(self):
+        self.pdf_list = []
+        for num, tweet in enumerate(rajf.mentions, start=0):
+            self.mentions[num].tweet_pd = pd.DataFrame( {**self.mentions[num].user_info, **self.mentions[num].tweet_info},
+                                                           index =  [self.mentions[num].user_info['screen_name']])
+            self.pdf_list = self.pdf_list.append(self.mentions[num].tweet_pd)
+        
+    def generate_pdf(self):
+        self.tweets_pd = pd.concat([self.mentions[num].tweet_pd] for num in list(range(0, len(self.mentions))))
+		
+		
+		
+		
+		class Comparison_collection():
     '''
-    Download manager class for IES web
-    
-    It contains methods for collection of links, downloading itself and storing results
+    Class containing methods for comparing among different twitter users posts and their mentions posts. 
     '''
-    def __init__(self,allowLog=True):
-        '''
-        creates IES_Downloader object with self.links, that store links to be downloaded
-        and self.people, self.courses and self.theses to store individual IES_Web-like objects
-        '''
-        self.allowLog = allowLog
-        self.links = {
-            'people':{},
-            'courses':[],
-            'theses':{}
-        }
-        self.people = []
-        self.courses = []
-        self.theses = []
-        
-        if self.allowLog:
-            print('Succesfully initialized IES Downloader')
     
-    def getPeopleLinksForCategory(self,link,category):
+    def __init__(self,dictionary, authentification):
         '''
-        Downloads all person links in the specified webpage and saves it to self.links
+        Loads a dictionary with {"full_name":"twitter_handle"} pairs and saves this logic
+        also creates an python-twitter API object based on a dictionary with API keys,
+        consumer key and secret must be called API_key and API_secret_key respectively,
+        access token key and access token secret must be called Access_token and Access_token_secret respectively
         '''
-        if self.allowLog:
-            print('Searching for Person-links of {} on {} ...'.format(category,link))
-        r = requests.get(link)
-        r.encoding = 'UTF-8'
-        soup = BeautifulSoup(r.text,'lxml')
 
-        self.links['people'][category] = self.getLinksByCondition(soup,'td[class=peopleTableCellName] > a')
-
-        if self.allowLog:
-            print('Found {} Person-links for {}'.format(len(self.links['people'][category]),category))
-            
-    def getThesesLinksForCategory(self,link,category):
-        '''
-        Downloads all theses-links in the specified webpage between 1994 and 2020 and saves it to self.links
-        link -- a webpage to parse from
-        category -- indicates a type of thesis
+        self.users = dictionary
         
-        does not return anything, but fills in self.links['theses'][category] instead
-        '''
-        if self.allowLog:
-            print('Searching for theses-links of {} on {} ...'.format(category,link))
-
-        l = []
-        for year in range(1994,2020):
-            tblLink = link + 'year/' + str(year)
-            
-            r = requests.get(tblLink)
-            soup = BeautifulSoup(r.text,'lxml')
-            l = l + ['http://ies.fsv.cuni.cz' + a['href'] for a in soup.find_all('a') if 'work' in a['href']]
-            
-        self.links['theses'][category] = l
-        if self.allowLog:
-            print('Found {} Theses-links for {}'.format(len(self.links['theses'][category]),category))
-
-    def downloadPeople(self,pause=0.5):
-        '''
-        Download all links stored in self.link['people'] and store it in self.people
-        pause -- how long to pause between requests? (in seconds)
-        tqdm -- the progress bar showing a progress of iterator
-        '''
-        if self.allowLog:
-            count = sum([len(self.links['people'][key])for key in self.links['people']])
-            print('Downloading all {} persons ...'.format(count))
-
-        for key in self.links['people']:
-            for link in tqdm(self.links['people'][key],desc=key):
-                person = IES_Person(link,key)
-                self.people.append(person)
-                time.sleep(pause)
-        if self.allowLog:
-            print('Succesfully downloaded {} persons'.format(len(self.people)))
-
-    def downloadTheses(self,pause=0.5):
-        '''
-        Download all links stored in self.link['theses'] and store it in self.theses
-        pause -- how long to pause between requests? (in seconds)
-        tqdm -- the progress bar showing a progress of iterator
-
-        '''
-        if self.allowLog:
-            count = sum([len(self.links['theses'][key])for key in self.links['theses']])
-            print('Downloading all {} theses ...'.format(count))
-
-        for key in self.links['theses']:
-            for link in tqdm(self.links['theses'][key],desc=key):
-                thesis = IES_Thesis(link,key)
-                self.theses.append(thesis)
-                time.sleep(pause)
-        if self.allowLog:
-            print('Succesfully downloaded {} theses'.format(len(self.theses)))
-
-    def downloadCourses(self,pause=0.5):
-        '''
-        Download all links stored in self.link['courses'] and store it in self.courses
-        pause -- how long to pause between requests? (in seconds)
-        tqdm -- the progress bar showing a progress of iterator
-        '''
-        if self.allowLog:
-            count = len(self.links['courses'])
-            print('Downloading all {} courses ...'.format(count))
-
-        for link in tqdm(self.links['courses'],desc='Courses'):
-            course = IES_Course(link)
-            self.courses.append(course)
-            time.sleep(pause)
-                    
-        if self.allowLog:
-            print('Succesfully downloaded {} courses'.format(len(self.courses)))
-
     
-    def getCoursesLinksFromPersons(self):
-        '''
-        In all persons stored in self.people, find all links containing substring 'syllab'
-        Exclude duplicates and store in self.links['courses']
-        '''
-        if self.allowLog:
-            print('Looking for course links in already downloaded persons  ...')
-        total_links = [person.soup.select('a[href*=syllab]') for person in self.people]
-
-        url_prefix = 'http://ies.fsv.cuni.cz/en/syllab/'
-        for person_links in total_links:
-            for link in person_links:
-                ident = link['href'].strip('/').split('/')[-1]
-                if ident:
-                    link_candidate = url_prefix + ident
-                    if link_candidate not in self.links['courses']:
-                        self.links['courses'].append(link_candidate)
-
-        if self.allowLog:
-            print('Among {} persons found {} unique courses'.format(len(self.people),len(self.links['courses'])))
-        
-    def getLinksByCondition(self,soup,cond):
-        '''
-        find all links satisfying condition cond in soup object
-        '''
-        links = soup.select(cond)
-        return ['http://ies.fsv.cuni.cz'  + l['href'] for l in links]
+        self.api = twitter.Api(consumer_key=authentification['API_key'],
+                  consumer_secret=authentification['API_secret_key'],
+                  access_token_key=authentification['Access_token'],
+                  access_token_secret=authentification['Access_token_secret'],
+                 tweet_mode='extended')
     
-    def saveDFs(self):
-        dfs = {}
-        dfs['theses'] = pd.DataFrame([x.characteristics for x in self.theses])
-        dfs['courses'] = pd.DataFrame([x.characteristics for x in self.courses])
-        dfs['people'] =  pd.DataFrame([x.characteristics for x in self.people])    
-        self.dfs = dfs
+    def create_user_data(self):
         
+        for name in self.users:
+            
+            self.accounts = {name: Twitter_user(self.users[name], self.api) for name in self.users}
+            
+    def get_users_tweets(self):
+        
+        for name in self.users:
+            
+            self.accounts[name].gather_tweets()
+    
