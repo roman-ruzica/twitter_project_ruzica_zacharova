@@ -102,3 +102,11 @@ class Twitter_user():
             
             self.accounts[name].gather_tweets()
     
+    
+    
+    
+def add_prefix_to_dict(dictionary_to_change, prefix_to_add):
+    init_dict_keys = list(dictionary_to_change.keys())
+    changed_list = ["reply_" + s for s in init_dict_keys]
+    final_dict = dict(zip(ini_list, list(ini_dict.values())))
+    return final_dict
