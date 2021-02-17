@@ -235,7 +235,7 @@ class ComparisonCollection():
             acct.rate_limiter_getstatus_ts = self.rate_limiter_getstatus_ts
             acct.do_all()
             self.rate_limiter_getstatus_handover_ts = acct.rate_limiter_getstatus_ts
-            self.rate_limiter_getstatus_handover_counter = name.rate_limiter_getstatus_counter
+            self.rate_limiter_getstatus_handover_counter = acct.rate_limiter_getstatus_counter
             
     def concatenate_tl_dataframe(self):
         timeline_list = []
