@@ -1,12 +1,16 @@
-
-
-import json
 import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+import wordcloud
+import stop_words
+import re
+import plotnine as p9
+import datetime
+import json
 import requests
 import twitter
 import itertools
 import time
-import datetime
 
 class TwitterUser():
     '''
@@ -30,6 +34,8 @@ class TwitterUser():
         self.rate_limiter_getstatus_counter = 0
         self.interesting_user_atributes = ['screen_name', 'favourites_count', 'followers_count', 'friends_count', 'statuses_count', 'location']
         self.interesting_tweet_attributes = ['full_text', 'lang', 'retweet_count','created_at', 'source']
+        self.inquiry_atributes_required = ( 'created_at', 'full_text', 'retweet_count', 'favorite_count')
+        self.inquiry_user_required = ('screen_name', 'followers_count', 'friends_count', 'statuses_count', "favourites_count")
         self.api_cons = twitter.Api(consumer_key=self.authentification['API_key'],
                   consumer_secret=self.authentification['API_secret_key'],
                   access_token_key=self.authentification['Access_token'],
@@ -95,7 +101,7 @@ class TwitterUser():
         
         
         
-        
+ # because the data is never in one layer, we extract each layer separately       
     def extract_mention_user_data(self):
         for mention in self.mentions:
             mention.user_info = {k: mention._json['user'][k] for k in self.interesting_user_atributes}
@@ -121,7 +127,9 @@ class TwitterUser():
         
         
     def get_inquired_to_tweet(self):
-        ## using enumeration to have an easy way to handle api rate limiting
+        ## This is the most critical part of the project
+        # if you hit rate_limit (900 calls per 15 minutes), you won't get an error response back, but an empty one - problem of python-twitter package
+        # The strategy is to 1st have an internal counter, which will wait for the remainder of 15 minutes every time another 899 calls are made
         for timeline_tweet in self.timeline:
             if (self.rate_limiter_getstatus_counter+1)%899 == 0:
                 time_to_wait = max(0, (15*60) - max(0,(datetime.datetime.now() - self.rate_limiter_getstatus_ts).total_seconds()))
@@ -140,7 +148,9 @@ class TwitterUser():
                     pass
 
     def retry_inquired_to_tweet(self):
-    ## not only rate limiting, but other unexpected problems might arise. If we have status id of the tweet the account is inquirying to, but no associated tweet, retry to get the tweet
+    ## secondlynot only rate limiting, but other unexpected problems might arise. If we have status id of the tweet the account is inquirying to,
+    # but no associated tweet, retry to get the tweet. Use this method if get_inquired_to_tweet() ran into problems, and also to check if the get_inquired_to_tweet()
+    # didn't leave out some tweets - if not, the loop will be quickly over
         for timeline_tweet in self.timeline:
             if (self.rate_limiter_getstatus_counter+1)%899 == 0:
                 time_to_wait = max(0, (15*60) - max(0,(datetime.datetime.now() - self.rate_limiter_getstatus_ts).total_seconds()))
@@ -160,16 +170,11 @@ class TwitterUser():
                         timeline_tweet.inquiry_tweet = None
                 else:
                     pass
-
-
-                
-                
+               
+            
+    # try-except clauses added because not all tweets in timeline are replies
     def extract_inquiry_tweet_info(self):
-        self.inquiry_atributes_required = ( 'created_at', 'full_text', 'retweet_count', 'favorite_count')
-        self.inquiry_user_required = ('screen_name', 'followers_count', 'friends_count', 'statuses_count', "favourites_count")
         for num in list(range(0, len(self.timeline))):
-
-
             try:
                 self.timeline[num].inquiry_tweet_info = {k: self.timeline[num].inquiry_tweet._json[k] for k in self.inquiry_atributes_required}
             except:
@@ -194,6 +199,8 @@ class TwitterUser():
         self.timeline_pd = pd.concat(self.inquiry_pd)    
         
     def do_all(self):
+        # only use to run b2b - if error such as connection break is detected, only run the remaining methods
+        # methods are working properly in the sequence listed
         self.gather_relevant_tweets()
         self.get_account_details()
         self.extract_mention_user_data()
@@ -207,7 +214,9 @@ class TwitterUser():
         
 class ComparisonCollection():
     '''
-    A collection of twitter 
+    A collection of twitter users
+    use dictionary with your preferred name as key and twitter username as value
+    authentification dictionary to be passed on to TwitterUser class
     '''
     def __init__(self,username_dictionary, authentification):
 
@@ -229,6 +238,7 @@ class ComparisonCollection():
             self.accounts.append(TwitterUser(self.users[name], self.authentification))
             
     def create_all_dataframes(self):
+        # ensure that TwitterUsers respect the rate-limit of the authtentification
         self.rate_limiter_getstatus_handover_counter = 0
         for acct in self.accounts:
             acct.rate_limiter_getstatus_counter = self.rate_limiter_getstatus_handover_counter
@@ -265,8 +275,32 @@ class ComparisonCollection():
         self.write_tl_csv()
         self.write_mentions_csv()
         
+        
+# helper functions
 def add_prefix_to_dict(dictionary_to_change, prefix_to_add):
     init_dict_keys = list(dictionary_to_change.keys())
     changed_list = ["reply_" + s for s in init_dict_keys]
     final_dict = dict(zip(changed_list, list(dictionary_to_change.values())))
     return final_dict
+
+## functions defined in-file
+def pattern_searcher(search_str:str, pattern_list:str):
+
+    search_obj = re.search(pattern_list, search_str)
+    if search_obj :
+        return_str = search_str[search_obj.start(): search_obj.end()]
+    else:
+        return_str = 'NA'
+    return return_str
+
+def extract_pattern_from_list(pd_series, pattern_list, new_col_name = "new_column"):
+    pattern = '|'.join(pattern_list)
+    return pd_series.apply(lambda x: pattern_searcher(search_str=x, pattern_list=pattern)).rename(new_col_name)
+
+def check_pattern_from_list(pd_series, pattern_list, new_col_name = "new_column"):
+    pattern = '|'.join(pattern_list)
+    return pd_series.str.contains(pattern).rename(new_col_name)
+
+def check_if_word_mentioned(pd_series, column_name: str, str_list_to_check = []):
+    pattern = '|'.join(pattern_list)
+    return pd_series.contains(pattern)
